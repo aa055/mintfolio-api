@@ -5,13 +5,23 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import health
+from app.routers import auth, files, health, purchases
+from app.services.storage import StorageError, ensure_bucket
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    # Startup: nothing to do yet (engine is lazily created in app.db)
+    # Startup: idempotent bucket bootstrap. Logs and swallows errors so a
+    # transient Supabase outage doesn't prevent the API from booting —
+    # signed-URL endpoints will surface a 502 if the bucket is genuinely
+    # unreachable when a request comes in.
+    try:
+        await ensure_bucket()
+    except StorageError as exc:
+        print(f"[startup] ensure_bucket failed (continuing): {exc}")
+
     yield
+
     # Shutdown: dispose engine cleanly to close pooled connections
     from app.db import engine
     await engine.dispose()
@@ -38,6 +48,9 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(health.router)
+    app.include_router(auth.router, prefix="/auth")
+    app.include_router(purchases.router)
+    app.include_router(files.router)
 
     return app
 

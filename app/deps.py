@@ -1,20 +1,15 @@
-"""FastAPI dependencies — auth, db session, etc.
-
-Stubs only for Phase 1 scaffold. Real implementation lands when we wire
-up the first authenticated endpoint.
-"""
+"""FastAPI dependencies — auth, db session, etc."""
 
 from typing import Annotated
 
 from fastapi import Depends, Header, HTTPException, status
-from jose import JWTError, jwt
 from pydantic import BaseModel
 
-from app.config import get_settings
+from app.services.jwt_verifier import JWTVerificationError, verify_supabase_jwt
 
 
 class CurrentUser(BaseModel):
-    id: str  # Supabase user UUID
+    id: str  # Supabase user UUID (the `sub` claim)
     email: str | None = None
 
 
@@ -23,8 +18,9 @@ async def get_current_user(
 ) -> CurrentUser:
     """Verify a Supabase access token and return the current user.
 
-    Frontend should send `Authorization: Bearer <supabase_access_token>`.
-    The JWT is signed with the project's JWT secret (HS256).
+    Frontend sends `Authorization: Bearer <supabase_access_token>`.
+    Verification is JWKS-based (ES256/RS256 for modern Supabase projects,
+    HS256 with the shared JWT_SECRET for legacy ones).
     """
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(
@@ -33,19 +29,13 @@ async def get_current_user(
         )
 
     token = authorization.split(" ", 1)[1]
-    settings = get_settings()
 
     try:
-        payload = jwt.decode(
-            token,
-            settings.supabase_jwt_secret,
-            algorithms=["HS256"],
-            audience="authenticated",
-        )
-    except JWTError as exc:
+        payload = await verify_supabase_jwt(token)
+    except JWTVerificationError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
+            detail=f"Invalid or expired token: {exc}",
         ) from exc
 
     user_id = payload.get("sub")
