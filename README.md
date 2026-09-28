@@ -104,6 +104,9 @@ alembic upgrade head
 # Roll back one revision
 alembic downgrade -1
 
+# Fetch today's GoldAPI prices into price_history (skips if already fetched today)
+python -m app.jobs.fetch_prices          # add --force to refetch
+
 # Run tests
 pytest
 
@@ -128,6 +131,6 @@ mypy app
 - [x] Create + list purchases — edit/delete pending
 - [ ] /holdings/{id}/sell
 - [x] Receipt upload (signed URLs) + file row management
-- [ ] /prices/live (read cache) + /prices/manual
-- [ ] Daily price fetch job (GoldAPI → price_history)
-- [ ] Valuation service (current value, unrealized + realized P/L)
+- [x] /prices/live (read cache) + /prices/manual
+- [x] Daily price fetch job (GoldAPI → price_history) — schedule on Render at deploy
+- [x] Valuation service + GET /portfolios/{id}/summary

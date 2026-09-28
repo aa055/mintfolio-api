@@ -31,6 +31,9 @@ class Settings(BaseSettings):
 
     # GoldAPI.io
     goldapi_key: str = ""
+    # Currencies the daily job fetches. Each one costs 2 calls/day (gold +
+    # silver) against the free tier's 100/month — keep this to one.
+    price_currencies: str = "AED"
 
     # CORS
     cors_origins: str = "http://localhost:3000"
@@ -38,6 +41,10 @@ class Settings(BaseSettings):
     @property
     def cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    @property
+    def price_currencies_list(self) -> list[str]:
+        return [c.strip().upper() for c in self.price_currencies.split(",") if c.strip()]
 
     @property
     def is_production(self) -> bool:
