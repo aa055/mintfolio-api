@@ -1,3 +1,4 @@
+import re
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -24,6 +25,9 @@ from app.services.storage import (
 router = APIRouter(tags=["files"])
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
+
+# The final path segment `build_storage_path` generates: `<uuid hex>.<ext>`.
+_OBJECT_NAME_RE = re.compile(r"[0-9a-f]{32}\.(jpg|png|pdf)")
 
 
 @router.post(
@@ -65,6 +69,7 @@ async def sign_upload(
 async def register_file(
     body: RegisterFileRequest,
     purchase: OwnedPurchaseDep,
+    current: CurrentUserDep,
     session: SessionDep,
 ) -> FileOut:
     """Record an uploaded file after the client confirms a successful PUT.
@@ -73,8 +78,9 @@ async def register_file(
     expected prefix, so a malicious caller can't register a row that
     points at someone else's object.
     """
-    expected_prefix = f"user-"  # broad check
-    if not body.storage_path.startswith(expected_prefix) or f"/purchase-{purchase.id}/" not in body.storage_path:
+    expected_prefix = f"user-{current.id}/purchase-{purchase.id}/"
+    object_name = body.storage_path.removeprefix(expected_prefix)
+    if object_name == body.storage_path or not _OBJECT_NAME_RE.fullmatch(object_name):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="storage_path is not under this purchase's prefix",

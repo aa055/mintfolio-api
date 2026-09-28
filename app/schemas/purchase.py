@@ -9,7 +9,6 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.schemas.file import FileOut
 
-
 # ---------------------------------------------------------------
 # Enums (kept as Literals so they appear in OpenAPI as enums)
 # ---------------------------------------------------------------
@@ -102,7 +101,7 @@ class PurchaseCreate(BaseModel):
     items: Annotated[list[HoldingCreate], Field(min_length=1)]
 
     @model_validator(mode="after")
-    def _check_card_premium_consistency(self) -> "PurchaseCreate":
+    def _check_card_premium_consistency(self) -> PurchaseCreate:
         if self.payment_method == "cash" and self.card_premium_percentage is not None:
             raise ValueError(
                 "card_premium_percentage must be null when payment_method is 'cash'."

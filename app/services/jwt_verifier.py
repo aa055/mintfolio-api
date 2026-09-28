@@ -57,9 +57,12 @@ async def _fetch_jwks() -> dict[str, Any]:
 async def _get_jwks(*, force_refresh: bool = False) -> dict[str, Any]:
     global _jwks_cache, _jwks_fetched_at
 
-    if not force_refresh and _jwks_cache is not None:
-        if time.time() - _jwks_fetched_at < JWKS_TTL_SECONDS:
-            return _jwks_cache
+    if (
+        not force_refresh
+        and _jwks_cache is not None
+        and time.time() - _jwks_fetched_at < JWKS_TTL_SECONDS
+    ):
+        return _jwks_cache
 
     async with _jwks_lock:
         # Re-check after acquiring the lock — another coroutine may have
@@ -107,20 +110,19 @@ async def verify_supabase_jwt(token: str) -> dict[str, Any]:
     kid = header.get("kid")
 
     # ---- HS256 path ----
-    # Either no kid (legacy project — verify against JWT_SECRET) or
-    # kid is present in JWKS as a symmetric (oct) key.
+    # Symmetric tokens are signed with the project's shared JWT secret.
+    # Supabase may stamp a `kid` on them too, but JWKS never publishes
+    # symmetric keys — so the secret is the only thing that can verify them.
     if alg == "HS256":
-        if not kid:
-            # Legacy: verify with the shared JWT secret.
-            try:
-                return jwt.decode(
-                    token,
-                    settings.supabase_jwt_secret,
-                    algorithms=["HS256"],
-                    audience="authenticated",
-                )
-            except JWTError as exc:
-                raise JWTVerificationError(f"HS256 verify failed: {exc}") from exc
+        try:
+            return jwt.decode(
+                token,
+                settings.supabase_jwt_secret,
+                algorithms=["HS256"],
+                audience="authenticated",
+            )
+        except JWTError as exc:
+            raise JWTVerificationError(f"HS256 verify failed: {exc}") from exc
 
     # ---- Asymmetric / JWKS path ----
     jwks = await _get_jwks()
