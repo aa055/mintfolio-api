@@ -122,11 +122,12 @@ mypy app
 - [x] Project scaffold + health check
 - [x] Alembic configured (reads URL from settings)
 - [x] Supabase JWT auth dependency
-- [ ] Models: users, portfolios, holdings, sales, price_history, uploaded_files
-- [ ] Initial migration
-- [ ] /me + /portfolio endpoints
-- [ ] /holdings CRUD + /holdings/{id}/sell
-- [ ] /uploads/sign + file row management
+- [x] Models: users, portfolios, purchases, holdings, sales, price_history, uploaded_files
+- [x] Initial migration
+- [x] /auth/sync + /auth/me
+- [x] Create + list purchases — edit/delete pending
+- [ ] /holdings/{id}/sell
+- [x] Receipt upload (signed URLs) + file row management
 - [ ] /prices/live (read cache) + /prices/manual
 - [ ] Daily price fetch job (GoldAPI → price_history)
 - [ ] Valuation service (current value, unrealized + realized P/L)

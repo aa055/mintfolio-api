@@ -1,6 +1,6 @@
 # Mintfolio — Database Schema (Phase 1 MVP)
 
-> **STATUS: REVISION 2 — awaiting user re-review.** No SQLAlchemy models or Alembic migrations have been written from this yet. Once you approve, I will translate this into `app/models/*.py` and an initial migration.
+> **STATUS: REVISION 2 — approved and implemented** in `app/models/*.py` and migration `a1b2c3d4e5f6_initial_schema.py`.
 
 This document defines the Phase 1 schema. It covers the **7 core tables** locked in the plan (the original 6 plus a `purchases` table introduced in this revision so a single dealer order can contain multiple line items).
 
