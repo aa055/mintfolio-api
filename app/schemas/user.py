@@ -2,9 +2,13 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 from uuid import UUID
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from app.schemas.price import Currency
 
 
 class UserOut(BaseModel):
@@ -38,6 +42,34 @@ class PortfolioOut(BaseModel):
 class MeResponse(BaseModel):
     user: UserOut
     portfolio: PortfolioOut
+
+
+class UserSettingsUpdate(BaseModel):
+    """Partial profile update — only the fields sent are changed."""
+
+    display_name: str | None = Field(default=None, max_length=200)
+    preferred_currency: Currency | None = None
+    timezone: str | None = Field(default=None, max_length=64)
+    default_pricing_mode: Literal["live", "manual"] | None = None
+
+    @field_validator("timezone")
+    @classmethod
+    def _valid_timezone(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        try:
+            ZoneInfo(v)
+        except (ZoneInfoNotFoundError, ValueError) as exc:
+            raise ValueError(f"Unknown timezone: {v!r}") from exc
+        return v
+
+    @field_validator("preferred_currency", "timezone", "default_pricing_mode")
+    @classmethod
+    def _not_null(cls, v: object) -> object:
+        # These columns are NOT NULL — sending null is a client bug, not "clear".
+        if v is None:
+            raise ValueError("may be omitted but not null")
+        return v
 
 
 class AuthSyncRequest(BaseModel):

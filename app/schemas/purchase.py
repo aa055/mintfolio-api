@@ -55,6 +55,44 @@ class HoldingCreate(BaseModel):
     comments: Annotated[str | None, Field(default=None, max_length=2000)]
 
 
+class HoldingUpsert(HoldingCreate):
+    """A line item in a purchase update. `id` set = update that item;
+    `id` omitted = add a new one. Items left out of the list are removed."""
+
+    id: UUID | None = None
+
+
+class SaleCreate(BaseModel):
+    """Records the sale of one whole holding (partial sales are Phase 2)."""
+
+    sale_price: Annotated[Decimal, Field(ge=Decimal("0"), max_digits=14, decimal_places=2)]
+    sale_currency: Annotated[str, Field(min_length=3, max_length=3)]
+    sale_date: date
+    sold_to: Annotated[str | None, Field(default=None, max_length=200)]
+    spot_rate_at_sale: Annotated[
+        Decimal | None,
+        Field(default=None, ge=Decimal("0"), max_digits=14, decimal_places=4),
+    ]
+    fees: Annotated[
+        Decimal, Field(default=Decimal("0"), ge=Decimal("0"), max_digits=14, decimal_places=2)
+    ]
+    comments: Annotated[str | None, Field(default=None, max_length=2000)]
+
+
+class SaleOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    sale_price: Decimal
+    sale_currency: str
+    sale_date: date
+    sold_to: str | None
+    spot_rate_at_sale: Decimal | None
+    fees: Decimal
+    comments: str | None
+    created_at: datetime
+
+
 class HoldingOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -75,6 +113,7 @@ class HoldingOut(BaseModel):
     comments: str | None
     created_at: datetime
     updated_at: datetime
+    sale: SaleOut | None = None
 
 
 # ---------------------------------------------------------------
@@ -111,6 +150,12 @@ class PurchaseCreate(BaseModel):
                 "card_premium_percentage is required when payment_method is 'card'."
             )
         return self
+
+
+class PurchaseUpdate(PurchaseCreate):
+    """Full replacement of a purchase's details and line items."""
+
+    items: Annotated[list[HoldingUpsert], Field(min_length=1)]
 
 
 class PurchaseOut(BaseModel):
