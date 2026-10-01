@@ -8,7 +8,13 @@ from app.db import get_session
 from app.deps import CurrentUserDep
 from app.models.portfolio import Portfolio
 from app.models.user import User
-from app.schemas.user import AuthSyncRequest, MeResponse, PortfolioOut, UserOut
+from app.schemas.user import (
+    AuthSyncRequest,
+    MeResponse,
+    PortfolioOut,
+    UserOut,
+    UserSettingsUpdate,
+)
 
 router = APIRouter(tags=["auth"])
 
@@ -104,3 +110,23 @@ async def get_me(
         user=UserOut.model_validate(user),
         portfolio=PortfolioOut.model_validate(portfolio),
     )
+
+
+@router.patch("/me", response_model=UserOut)
+async def update_me(
+    body: UserSettingsUpdate,
+    current: CurrentUserDep,
+    session: SessionDep,
+) -> UserOut:
+    """Update profile settings. Only fields present in the body change."""
+    user = await session.get(User, current.id)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not synced. Call POST /auth/sync first.",
+        )
+    for field in body.model_fields_set:
+        setattr(user, field, getattr(body, field))
+    await session.commit()
+    await session.refresh(user)
+    return UserOut.model_validate(user)
