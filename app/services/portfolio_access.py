@@ -11,9 +11,11 @@ from uuid import UUID
 from fastapi import Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload, selectinload
 
 from app.db import get_session
 from app.deps import CurrentUserDep
+from app.models.holding import Holding
 from app.models.portfolio import Portfolio
 from app.models.purchase import Purchase
 from app.models.uploaded_file import UploadedFile
@@ -90,3 +92,29 @@ async def get_owned_file(
 
 
 OwnedFileDep = Annotated[UploadedFile, Depends(get_owned_file)]
+
+
+async def get_owned_holding(
+    holding_id: UUID,
+    current: CurrentUserDep,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> Holding:
+    """Return the holding (with its purchase and sale loaded) if the current
+    user owns it transitively (holding→purchase→portfolio→user)."""
+    stmt = (
+        select(Holding)
+        .join(Purchase, Holding.purchase_id == Purchase.id)
+        .join(Portfolio, Purchase.portfolio_id == Portfolio.id)
+        .where(Holding.id == holding_id, Portfolio.user_id == current.id)
+        .options(joinedload(Holding.purchase), selectinload(Holding.sale))
+    )
+    holding = (await session.execute(stmt)).scalar_one_or_none()
+    if holding is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Holding not found",
+        )
+    return holding
+
+
+OwnedHoldingDep = Annotated[Holding, Depends(get_owned_holding)]

@@ -189,6 +189,22 @@ async def delete_object(storage_path: str) -> None:
     )
 
 
+async def delete_objects(storage_paths: list[str]) -> None:
+    """Remove several objects in one call. Missing objects are ignored."""
+    if not storage_paths:
+        return
+    s = _settings()
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        r = await client.request(
+            "DELETE",
+            f"{_storage_base()}/object/{s.supabase_storage_bucket}",
+            headers={**_service_headers(), "Content-Type": "application/json"},
+            json={"prefixes": storage_paths},
+        )
+    if r.status_code not in (200, 204):
+        raise StorageError(f"Bulk delete failed: {r.status_code} {r.text}")
+
+
 def guess_mime_type(filename: str) -> str | None:
     """Conservative MIME guess for clients that don't send Content-Type."""
     mt, _ = mimetypes.guess_type(filename)
