@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import auth, files, health, portfolios, prices, purchases
+from app.routers import auth, files, health, portfolios, prices, purchases, sales
 from app.services.storage import StorageError, ensure_bucket
 
 
@@ -53,6 +53,7 @@ def create_app() -> FastAPI:
     app.include_router(files.router)
     app.include_router(portfolios.router)
     app.include_router(prices.router)
+    app.include_router(sales.router)
 
     return app
 

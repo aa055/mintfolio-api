@@ -127,9 +127,9 @@ mypy app
 - [x] Supabase JWT auth dependency
 - [x] Models: users, portfolios, purchases, holdings, sales, price_history, uploaded_files
 - [x] Initial migration
-- [x] /auth/sync + /auth/me
-- [x] Create + list purchases — edit/delete pending
-- [ ] /holdings/{id}/sell
+- [x] /auth/sync + /auth/me (GET + PATCH settings)
+- [x] Purchases: create, list, get, update, delete
+- [x] /holdings/{id}/sale (record + undo)
 - [x] Receipt upload (signed URLs) + file row management
 - [x] /prices/live (read cache) + /prices/manual
 - [x] Daily price fetch job (GoldAPI → price_history) — schedule on Render at deploy
