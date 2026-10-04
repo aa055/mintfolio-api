@@ -1,6 +1,7 @@
-from typing import Annotated
+from datetime import UTC, datetime
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,8 +9,16 @@ from app.db import get_session
 from app.deps import CurrentUserDep
 from app.models.price_history import PriceHistory
 from app.models.user import User
-from app.schemas.price import LivePricesResponse, ManualRatesIn, PriceOut
+from app.schemas.price import (
+    Currency,
+    LivePricesResponse,
+    ManualRatesIn,
+    PriceHistoryResponse,
+    PriceOut,
+    PricePoint,
+)
 from app.schemas.user import UserOut
+from app.services.price_history import HistoryRange, daily_pure_rates, range_start
 from app.services.valuation import PURE_PURITY
 
 router = APIRouter(prefix="/prices", tags=["prices"])
@@ -79,3 +88,30 @@ async def set_manual_rates(
     await session.commit()
     await session.refresh(user)
     return UserOut.model_validate(user)
+
+
+@router.get("/history", response_model=PriceHistoryResponse)
+async def price_history(
+    metal: Literal["gold", "silver"],
+    current: CurrentUserDep,
+    session: SessionDep,
+    range_: Annotated[HistoryRange, Query(alias="range")] = "1Y",
+    currency: Currency | None = None,
+) -> PriceHistoryResponse:
+    """One pure rate per day for charts — GoldAPI where the daily job has
+    run, the metals.dev backfill before that. `currency` defaults to the
+    user's preferred currency; only USD-pegged currencies have history."""
+    if currency is None:
+        user = await session.get(User, current.id)
+        currency = user.preferred_currency if user else "AED"  # type: ignore[assignment]
+
+    start = range_start(range_, datetime.now(UTC).date())
+    points, sources = await daily_pure_rates(session, metal, currency, start)
+    return PriceHistoryResponse(
+        metal=metal,
+        purity=PURE_PURITY[metal],
+        currency=currency,
+        range=range_,
+        points=[PricePoint(day=d, rate_per_gram=r) for d, r in points],
+        sources=sorted(sources),
+    )

@@ -10,11 +10,13 @@ from typing import Literal
 
 WeightUnit = Literal["g", "kg", "oz"]
 
+GRAMS_PER_TROY_OZ = Decimal("31.1035")
+
 # Decimal so the conversion stays exact at arbitrary precision.
 _GRAMS_PER_UNIT: dict[str, Decimal] = {
     "g": Decimal("1"),
     "kg": Decimal("1000"),
-    "oz": Decimal("31.1035"),  # troy ounce
+    "oz": GRAMS_PER_TROY_OZ,
 }
 
 

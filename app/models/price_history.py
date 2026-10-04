@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Numeric, String, func
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Numeric, String, func, text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -18,12 +18,15 @@ if TYPE_CHECKING:
 class PriceHistory(Base):
     """Append-only price snapshots.
 
-    Two sources coexist:
-      - 'goldapi': system-wide rows written by the daily cron. user_id IS NULL.
-      - 'manual':  per-user rows when the user enters their own rate. user_id NOT NULL.
+    Three sources coexist:
+      - 'goldapi':   system-wide rows written by the daily job. user_id IS NULL.
+      - 'metalsdev': system-wide historical backfill (pure rates only). user_id IS NULL.
+      - 'manual':    per-user rows when the user enters their own rate. user_id NOT NULL.
 
-    Rows are immutable — no `updated_at`. The latest row per (metal, purity,
-    source[, user_id]) wins for valuation lookups.
+    Market sources keep at most one row per (metal, purity, currency, source,
+    UTC day). Rows are immutable — no `updated_at`. Current valuation reads
+    the latest 'goldapi' row; history prefers 'goldapi' over 'metalsdev'
+    when both exist for a day.
     """
 
     __tablename__ = "price_history"
@@ -60,13 +63,13 @@ class PriceHistory(Base):
     __table_args__ = (
         CheckConstraint("metal IN ('gold','silver')", name="ck_price_history_metal"),
         CheckConstraint(
-            "source IN ('goldapi','manual')",
+            "source IN ('goldapi','metalsdev','manual')",
             name="ck_price_history_source",
         ),
         CheckConstraint("rate_per_gram >= 0", name="ck_price_history_rate_nonneg"),
         # Source/user_id consistency: goldapi rows have no user, manual rows must have one
         CheckConstraint(
-            "(source = 'goldapi' AND user_id IS NULL) "
+            "(source IN ('goldapi','metalsdev') AND user_id IS NULL) "
             "OR (source = 'manual' AND user_id IS NOT NULL)",
             name="ck_price_history_source_user_match",
         ),
@@ -76,6 +79,16 @@ class PriceHistory(Base):
             "purity",
             "source",
             "fetched_at",
+        ),
+        Index(
+            "uq_price_history_market_daily",
+            "metal",
+            "purity",
+            "currency",
+            "source",
+            text("((fetched_at AT TIME ZONE 'UTC')::date)"),
+            unique=True,
+            postgresql_where=text("source <> 'manual'"),
         ),
         Index(
             "ix_price_history_manual_user_lookup",
