@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     # silver) against the free tier's 100/month — keep this to one.
     price_currencies: str = "AED"
 
+    # metals.dev — only the one-time history backfill uses it (free: 100 calls/month)
+    metals_dev_key: str = ""
+
     # CORS
     cors_origins: str = "http://localhost:3000"
 

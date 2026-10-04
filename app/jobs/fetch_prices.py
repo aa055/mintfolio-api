@@ -16,13 +16,14 @@ import sys
 from datetime import UTC, datetime, time
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.db import SessionLocal, engine
 from app.models.price_history import PriceHistory
 from app.services.goldapi import GoldAPIError, fetch_quotes
+from app.services.price_history import price_day
 
 METALS = ("gold", "silver")
 
@@ -57,6 +58,16 @@ async def run(*, force: bool = False) -> int:
                     failures += 1
                     print(f"[prices] {metal}/{currency}: FAILED {exc}", file=sys.stderr)
                     continue
+                # One snapshot per day: a re-run (e.g. --force) replaces that
+                # day's rows instead of tripping the daily unique index.
+                await session.execute(
+                    delete(PriceHistory).where(
+                        PriceHistory.source == "goldapi",
+                        PriceHistory.metal == metal,
+                        PriceHistory.currency == currency,
+                        price_day == quotes[0].fetched_at.astimezone(UTC).date(),
+                    )
+                )
                 session.add_all(
                     PriceHistory(
                         metal=q.metal,
