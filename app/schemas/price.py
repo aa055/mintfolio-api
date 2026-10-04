@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated, Literal
 from uuid import UUID
@@ -83,3 +83,20 @@ class PortfolioSummaryOut(BaseModel):
     other_currency_count: int
     by_metal: list[MetalSummaryOut]
     holdings: list[HoldingValueOut]
+
+
+class PricePoint(BaseModel):
+    day: date
+    rate_per_gram: Decimal
+
+
+class PriceHistoryResponse(BaseModel):
+    """Daily pure-metal rate (24K gold / 999 silver) per gram. Missing days
+    are carried forward from the previous day."""
+
+    metal: str
+    purity: str
+    currency: str
+    range: str
+    points: list[PricePoint]
+    sources: list[str]
