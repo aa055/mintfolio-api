@@ -1,0 +1,44 @@
+name: Daily metal prices
+
+on:
+  schedule:
+    # 20:00 UTC = midnight in Dubai, Monday-Friday. Markets are shut at
+    # weekends and price history carries Friday's rate forward, so weekend
+    # runs would only spend GoldAPI quota (2 calls/run; free tier 100/month).
+    - cron: "0 20 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Re-fetch even if today's prices are already stored"
+        type: boolean
+        default: false
+
+concurrency: daily-prices
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - run: pip install -r requirements.txt
+
+      - name: Fetch today's prices into price_history
+        run: python -m app.jobs.fetch_prices ${{ inputs.force && '--force' || '' }}
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GOLDAPI_KEY: ${{ secrets.GOLDAPI_KEY }}
+          PRICE_CURRENCIES: AED
+          # Required by app settings, unused by this job.
+          DATABASE_URL_SYNC: unused
+          SUPABASE_URL: https://unused.invalid
+          SUPABASE_ANON_KEY: unused
+          SUPABASE_SERVICE_ROLE_KEY: unused
+          SUPABASE_JWT_SECRET: unused
