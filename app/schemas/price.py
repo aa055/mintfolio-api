@@ -67,16 +67,39 @@ class HoldingValueOut(BaseModel):
     realized_pl: Decimal | None
 
 
+class DayChangeOut(BaseModel):
+    day: date
+    previous_day: date
+    amount: Decimal
+    pct: Decimal | None
+
+
+class MarketRateOut(BaseModel):
+    """Latest market rate for pure metal, with its move since the previous day."""
+
+    metal: str
+    currency: str
+    day: date
+    rate_per_gram: Decimal
+    previous_day: date | None
+    previous_rate: Decimal | None
+    change_pct: Decimal | None
+
+
 class PortfolioSummaryOut(BaseModel):
     currency: str
     pricing_mode: str
     rates: list[RateOut]
+    market_rates: list[MarketRateOut]
     total_value: Decimal
     cost_basis: Decimal
     total_invested: Decimal
     unrealized_pl: Decimal
     unrealized_pl_pct: Decimal | None
     realized_pl: Decimal
+    all_time_pl: Decimal
+    all_time_pl_pct: Decimal | None
+    today_change: DayChangeOut | None  # None in manual pricing mode
     active_count: int
     sold_count: int
     unvalued_count: int
@@ -100,3 +123,19 @@ class PriceHistoryResponse(BaseModel):
     range: str
     points: list[PricePoint]
     sources: list[str]
+
+
+class PortfolioPointOut(BaseModel):
+    day: date
+    value: Decimal
+    invested: Decimal
+    realized: Decimal  # cumulative realized P/L up to this day
+
+
+class PortfolioHistoryOut(BaseModel):
+    """Daily portfolio value vs invested (cost of what was held that day).
+    Always valued at market rates, whatever the user's pricing mode."""
+
+    currency: str
+    range: str
+    points: list[PortfolioPointOut]
