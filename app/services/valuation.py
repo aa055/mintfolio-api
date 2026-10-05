@@ -15,7 +15,7 @@ another currency are left out of totals (FX is Phase 2) and counted in
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from uuid import UUID
 
@@ -91,6 +91,8 @@ class HoldingInput:
     sale_price: Decimal | None = None
     sale_currency: str | None = None
     sale_fees: Decimal = Decimal(0)
+    purchase_date: date | None = None
+    sale_date: date | None = None
 
 
 @dataclass
@@ -117,6 +119,7 @@ class Summary:
     total_invested: Decimal = Decimal(0)  # all holdings, active + sold
     unrealized_pl: Decimal = Decimal(0)
     realized_pl: Decimal = Decimal(0)
+    sold_cost: Decimal = Decimal(0)  # purchase price of sold holdings with a realized P/L
     active_count: int = 0
     sold_count: int = 0
     unvalued_count: int = 0
@@ -129,6 +132,18 @@ class Summary:
         if not self.cost_basis:
             return None
         return (self.unrealized_pl / self.cost_basis * 100).quantize(CENT)
+
+    @property
+    def all_time_pl(self) -> Decimal:
+        return self.unrealized_pl + self.realized_pl
+
+    @property
+    def all_time_pl_pct(self) -> Decimal | None:
+        """All-time P/L on everything it covers: valued active lots + sold lots."""
+        basis = self.cost_basis + self.sold_cost
+        if not basis:
+            return None
+        return (self.all_time_pl / basis * 100).quantize(CENT)
 
 
 def value_holding(h: HoldingInput, rates: dict[tuple[str, str], PureRate]) -> HoldingValue:
@@ -168,6 +183,7 @@ def summarize(
             summary.sold_count += 1
             if hv.realized_pl is not None:
                 summary.realized_pl += hv.realized_pl
+                summary.sold_cost += h.purchase_price
             continue
 
         summary.active_count += 1
@@ -235,13 +251,13 @@ async def rates_for_user(session: AsyncSession, user: User) -> dict[tuple[str, s
 
 async def load_holdings(session: AsyncSession, portfolio_id: UUID) -> list[HoldingInput]:
     stmt = (
-        select(Holding, Purchase.purchase_currency)
+        select(Holding, Purchase.purchase_currency, Purchase.purchase_date)
         .join(Purchase, Holding.purchase_id == Purchase.id)
         .where(Purchase.portfolio_id == portfolio_id)
         .options(selectinload(Holding.sale))
     )
     result = []
-    for h, currency in (await session.execute(stmt)).all():
+    for h, currency, purchase_date in (await session.execute(stmt)).all():
         sale = h.sale
         result.append(
             HoldingInput(
@@ -256,6 +272,8 @@ async def load_holdings(session: AsyncSession, portfolio_id: UUID) -> list[Holdi
                 sale_price=sale.sale_price if sale else None,
                 sale_currency=sale.sale_currency if sale else None,
                 sale_fees=sale.fees if sale else Decimal(0),
+                purchase_date=purchase_date,
+                sale_date=sale.sale_date if sale else None,
             )
         )
     return result
