@@ -52,6 +52,7 @@ class Purchase(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         back_populates="purchase",
         cascade="all, delete-orphan",
         lazy="raise",
+        order_by="(Holding.created_at, Holding.id)",  # entry order
     )
     files: Mapped[list[UploadedFile]] = relationship(
         "UploadedFile",

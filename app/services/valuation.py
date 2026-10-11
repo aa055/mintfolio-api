@@ -19,7 +19,7 @@ from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from uuid import UUID
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import Date, and_, case, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -74,7 +74,7 @@ def purity_fraction(purity: str | None) -> Decimal | None:
 class PureRate:
     rate_per_gram: Decimal
     currency: str
-    source: str  # 'goldapi' | 'manual'
+    source: str  # 'goldapi' | 'metalsdev' | 'manual'
     fetched_at: datetime | None
 
 
@@ -206,11 +206,19 @@ def summarize(
 
 
 async def latest_live_rates(session: AsyncSession) -> dict[tuple[str, str], PureRate]:
-    """Latest GoldAPI pure rate per (metal, currency)."""
+    """Latest market (spot) pure rate per (metal, currency).
+
+    Same rule as the price history behind the charts: the most recent day
+    wins, and on a day with both sources GoldAPI beats the metals.dev
+    backfill. Using one rule keeps the rate cards, the value tiles and the
+    chart's last point in agreement.
+    """
+    # (fetched_at AT TIME ZONE 'UTC')::date — inline: price_history imports this module.
+    day = cast(func.timezone("UTC", PriceHistory.fetched_at), Date)
     stmt = (
         select(PriceHistory)
         .where(
-            PriceHistory.source == "goldapi",
+            PriceHistory.source.in_(("goldapi", "metalsdev")),
             or_(
                 *(
                     and_(PriceHistory.metal == metal, PriceHistory.purity == purity)
@@ -219,11 +227,17 @@ async def latest_live_rates(session: AsyncSession) -> dict[tuple[str, str], Pure
             ),
         )
         .distinct(PriceHistory.metal, PriceHistory.currency)
-        .order_by(PriceHistory.metal, PriceHistory.currency, PriceHistory.fetched_at.desc())
+        .order_by(
+            PriceHistory.metal,
+            PriceHistory.currency,
+            day.desc(),
+            case((PriceHistory.source == "goldapi", 0), else_=1),
+            PriceHistory.fetched_at.desc(),
+        )
     )
     rows = (await session.execute(stmt)).scalars().all()
     return {
-        (r.metal, r.currency): PureRate(r.rate_per_gram, r.currency, "goldapi", r.fetched_at)
+        (r.metal, r.currency): PureRate(r.rate_per_gram, r.currency, r.source, r.fetched_at)
         for r in rows
     }
 

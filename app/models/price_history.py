@@ -24,9 +24,9 @@ class PriceHistory(Base):
       - 'manual':    per-user rows when the user enters their own rate. user_id NOT NULL.
 
     Market sources keep at most one row per (metal, purity, currency, source,
-    UTC day). Rows are immutable — no `updated_at`. Current valuation reads
-    the latest 'goldapi' row; history prefers 'goldapi' over 'metalsdev'
-    when both exist for a day.
+    UTC day). Rows are immutable — no `updated_at`. Valuation and charts
+    both use the latest market day, preferring 'goldapi' over 'metalsdev'
+    when a day has both.
     """
 
     __tablename__ = "price_history"

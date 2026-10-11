@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, ForeignKey, Index, Integer, Numeric, String
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, Numeric, String, func
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -23,6 +24,14 @@ class Holding(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     """
 
     __tablename__ = "holdings"
+
+    # clock_timestamp(), not now(): items saved in one transaction get distinct,
+    # increasing times, so they keep the order they were entered in.
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.clock_timestamp(),
+    )
 
     purchase_id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True),
