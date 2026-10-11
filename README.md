@@ -138,7 +138,7 @@ mypy app
 
 ### Daily job on GitHub Actions
 
-`.github/workflows/daily-prices.yml` runs `fetch_prices` Monday–Friday at 20:00 UTC (midnight Dubai). It can also be started by hand from the Actions tab, with an optional "force" re-fetch. It also keeps the free Supabase project from pausing for inactivity.
+`.github/workflows/daily-prices.yml` runs `fetch_prices` Monday–Friday at 16:37 UTC (20:37 Dubai). GitHub often starts scheduled runs hours late, so this leaves room for the run to finish on the same UTC day. It can also be started by hand from the Actions tab, with an optional "force" re-fetch. It also keeps the free Supabase project from pausing for inactivity.
 
 Set these repository secrets (Settings → Secrets and variables → Actions):
 

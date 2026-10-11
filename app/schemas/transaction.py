@@ -29,6 +29,8 @@ class TransactionOut(BaseModel):
     realized_pl: Decimal | None  # sales only, when currencies match
     item_count: int  # purchases only (1 for sales)
     receipt_count: int  # purchases only
+    payment_method: str | None  # purchases only: 'cash' | 'card'
+    item_labels: list[str]  # every item in the order, e.g. ["Gold 24K bar", ...]
     metals: list[str]
 
 

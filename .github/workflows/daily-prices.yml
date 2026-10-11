@@ -2,10 +2,15 @@ name: Daily metal prices
 
 on:
   schedule:
-    # 20:00 UTC = midnight in Dubai, Monday-Friday. Markets are shut at
-    # weekends and price history carries Friday's rate forward, so weekend
-    # runs would only spend GoldAPI quota (2 calls/run; free tier 100/month).
-    - cron: "0 20 * * 1-5"
+    # 16:37 UTC (20:37 Dubai), Monday-Friday: after the London PM fix, while
+    # New York trades. GitHub often starts scheduled runs hours late (we saw
+    # 3-5 h), and a run that slips past midnight UTC stores its prices under
+    # the next day — so run early enough that a delay stays on the same day.
+    # The odd minute avoids GitHub's busiest top-of-the-hour slots.
+    # Weekends are skipped: markets are shut and history carries Friday's
+    # rate forward, so those runs would only spend GoldAPI quota
+    # (2 calls/run; free tier 100/month).
+    - cron: "37 16 * * 1-5"
   workflow_dispatch:
     inputs:
       force:

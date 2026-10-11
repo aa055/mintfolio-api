@@ -72,6 +72,8 @@ async def list_transactions(
                     realized_pl=None,
                     item_count=len(holdings),
                     receipt_count=len(p.files),
+                    payment_method=p.payment_method,
+                    item_labels=[holding_label(h) for h in holdings],
                     metals=sorted({h.metal for h in holdings}),
                 )
             )
@@ -99,6 +101,8 @@ async def list_transactions(
                         ),
                         item_count=1,
                         receipt_count=0,
+                        payment_method=None,
+                        item_labels=[holding_label(h)],
                         metals=[h.metal],
                     )
                 )
