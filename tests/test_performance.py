@@ -107,3 +107,30 @@ def test_series_extends_to_today_with_current_holdings() -> None:
     # the day before, it was still held
     assert pts[-2].invested == D("8000.00")
     assert portfolio_series(holdings, "AED", RATES, end=D1)[-1].day == D1 + timedelta(days=4)
+
+
+def test_premium_from_market_history_scales_by_purity() -> None:
+    from app.services.performance import purchase_premium
+
+    market = {("gold", "AED"): {D1: D("400")}}
+    # 10 g of 22K: melt = 400 * 22/24 * 10 = 3666.67 ; paid 4000 -> +333.33 (9.09%)
+    p = purchase_premium(_h(purity="22K", purchase_price=D("4000.00")), market)
+    assert p is not None and p.source == "market"
+    assert (p.melt_value, p.amount, p.pct) == (D("3666.67"), D("333.33"), D("9.09"))
+
+
+def test_premium_prefers_entered_spot_and_handles_missing_rates() -> None:
+    from app.services.performance import purchase_premium
+
+    entered = _h(spot_rate_at_purchase=D("380"), purchase_price=D("3700.00"))
+    p = purchase_premium(entered, {("gold", "AED"): {D1: D("400")}})
+    # entered rate is per gram of the item: 380 * 10 = 3800 -> paid 100 below spot
+    assert p is not None and (p.source, p.amount, p.pct) == ("entered", D("-100.00"), D("-2.63"))
+    assert purchase_premium(_h(currency="GBP"), {("gold", "AED"): {D1: D("400")}}) is None
+    assert purchase_premium(_h(purity="??"), {("gold", "AED"): {D1: D("400")}}) is None
+    assert (
+        purchase_premium(
+            _h(purchase_date=D1 + timedelta(days=1)), {("gold", "AED"): {D1: D("400")}}
+        )
+        is None
+    )

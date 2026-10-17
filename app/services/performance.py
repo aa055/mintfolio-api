@@ -178,3 +178,43 @@ def market_rates(rates: RateSeries) -> list[MarketRate]:
             )
         )
     return out
+
+
+@dataclass(frozen=True)
+class Premium:
+    """What was paid over the metal's spot value on the purchase date."""
+
+    melt_value: Decimal  # spot value of the metal on the purchase date
+    amount: Decimal  # purchase price - melt value (negative = below spot)
+    pct: Decimal | None
+    source: str  # 'entered': the user's own spot rate | 'market': price history
+
+
+def purchase_premium(
+    h: HoldingInput,
+    market: dict[tuple[str, str], dict[date, Decimal]],
+) -> Premium | None:
+    """Premium over spot for one lot.
+
+    A spot rate the user entered wins: it's per gram *of the item* (the
+    purchase form's math check multiplies it by the item weight directly).
+    Otherwise use the pure-metal market rate on the purchase date, scaled
+    by purity. None when neither is available (e.g. no history in that
+    currency).
+    """
+    if h.spot_rate_at_purchase:
+        melt = h.spot_rate_at_purchase * h.weight_grams * h.quantity
+        source = "entered"
+    else:
+        fraction = purity_fraction(h.purity)
+        rate = (
+            market.get((h.metal, h.currency), {}).get(h.purchase_date) if h.purchase_date else None
+        )
+        if rate is None or fraction is None:
+            return None
+        melt = rate * fraction * h.weight_grams * h.quantity
+        source = "market"
+    melt = melt.quantize(CENT)
+    amount = h.purchase_price - melt
+    pct = (amount / melt * 100).quantize(CENT) if melt else None
+    return Premium(melt_value=melt, amount=amount, pct=pct, source=source)

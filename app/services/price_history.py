@@ -12,7 +12,7 @@ from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Literal
 
-from sqlalchemy import Date, case, cast, func, select
+from sqlalchemy import Date, and_, case, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.price_history import PriceHistory
@@ -59,6 +59,55 @@ def fill_daily(points: list[tuple[date, Decimal]]) -> list[tuple[date, Decimal]]
             gap_day += timedelta(days=1)
         filled.append((day, rate))
     return filled
+
+
+async def daily_pure_rates_many(
+    session: AsyncSession,
+    pairs: set[tuple[str, str]],
+    start: date | None = None,
+) -> dict[tuple[str, str], list[tuple[date, Decimal]]]:
+    """`daily_pure_rates` for several (metal, currency) pairs in ONE query.
+
+    Each query is a full round trip to the database, so pages that need
+    both metals (or several currencies) fetch them together.
+    """
+    if not pairs:
+        return {}
+    stmt = (
+        select(
+            PriceHistory.metal,
+            PriceHistory.currency,
+            price_day.label("day"),
+            PriceHistory.rate_per_gram,
+        )
+        .where(
+            or_(
+                *(
+                    and_(
+                        PriceHistory.metal == metal,
+                        PriceHistory.purity == PURE_PURITY[metal],
+                        PriceHistory.currency == currency,
+                    )
+                    for metal, currency in pairs
+                )
+            ),
+            PriceHistory.source.in_(MARKET_SOURCES),
+        )
+        .distinct(PriceHistory.metal, PriceHistory.currency, price_day)
+        .order_by(
+            PriceHistory.metal,
+            PriceHistory.currency,
+            price_day,
+            case((PriceHistory.source == "goldapi", 0), else_=1),
+            PriceHistory.fetched_at.desc(),
+        )
+    )
+    if start is not None:
+        stmt = stmt.where(PriceHistory.fetched_at >= datetime.combine(start, time.min, tzinfo=UTC))
+    grouped: dict[tuple[str, str], list[tuple[date, Decimal]]] = {pair: [] for pair in pairs}
+    for r in (await session.execute(stmt)).all():
+        grouped[(r.metal, r.currency)].append((r.day, r.rate_per_gram))
+    return {pair: fill_daily(points) for pair, points in grouped.items()}
 
 
 async def daily_pure_rates(

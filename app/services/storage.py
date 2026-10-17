@@ -26,6 +26,24 @@ _MIME_TO_EXT: Final = {
 }
 
 
+AVATAR_MIME_TYPES: Final = ("image/jpeg", "image/png", "image/webp")
+MAX_AVATAR_BYTES: Final = 2 * 1024 * 1024  # 2 MB
+
+_AVATAR_EXT: Final = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
+
+
+def avatar_bucket() -> str:
+    return _settings().supabase_avatar_bucket
+
+
+def build_avatar_path(user_id: str, mime_type: str) -> str:
+    """`user-{uid}/{uuid}.{ext}` in the avatars bucket. A fresh name per
+    upload, so a new photo never shows a cached old one."""
+    if mime_type not in AVATAR_MIME_TYPES:
+        raise StorageError(f"Disallowed MIME type: {mime_type!r}")
+    return f"user-{user_id}/{uuid.uuid4().hex}.{_AVATAR_EXT[mime_type]}"
+
+
 class StorageError(Exception):
     """Raised when a Supabase Storage call fails."""
 
@@ -73,15 +91,19 @@ def build_storage_path(
     return f"user-{user_id}/purchase-{purchase_id}/{uuid.uuid4().hex}.{ext}"
 
 
-async def ensure_bucket() -> None:
-    """Create the receipts bucket if it doesn't already exist.
+async def ensure_bucket(
+    bucket: str | None = None,
+    *,
+    allowed_mime_types: tuple[str, ...] = ALLOWED_MIME_TYPES,
+    file_size_limit: int = MAX_FILE_SIZE_BYTES,
+) -> None:
+    """Create a private bucket if it doesn't already exist (default: receipts).
 
     Idempotent — safe to call on every startup. Sets MIME whitelist and
     size cap at the bucket level so even a misconfigured client can't
     sneak past our validation.
     """
-    s = _settings()
-    bucket = s.supabase_storage_bucket
+    bucket = bucket or _settings().supabase_storage_bucket
     async with httpx.AsyncClient(timeout=15.0) as client:
         # GET — exists check
         r = await client.get(
@@ -91,9 +113,7 @@ async def ensure_bucket() -> None:
         if r.status_code == 200:
             return
         if r.status_code not in (400, 404):
-            raise StorageError(
-                f"Unexpected status {r.status_code} checking bucket: {r.text}"
-            )
+            raise StorageError(f"Unexpected status {r.status_code} checking bucket: {r.text}")
 
         # Create
         r = await client.post(
@@ -103,19 +123,18 @@ async def ensure_bucket() -> None:
                 "id": bucket,
                 "name": bucket,
                 "public": False,
-                "file_size_limit": MAX_FILE_SIZE_BYTES,
-                "allowed_mime_types": list(ALLOWED_MIME_TYPES),
+                "file_size_limit": file_size_limit,
+                "allowed_mime_types": list(allowed_mime_types),
             },
         )
         if r.status_code not in (200, 201, 409):
-            raise StorageError(
-                f"Failed to create bucket {bucket!r}: {r.status_code} {r.text}"
-            )
+            raise StorageError(f"Failed to create bucket {bucket!r}: {r.status_code} {r.text}")
 
 
 async def create_signed_upload_url(
     storage_path: str,
     *,
+    bucket: str | None = None,
     expires_in_seconds: int = 600,
 ) -> str:
     """Return a one-time signed URL for a PUT upload.
@@ -124,7 +143,7 @@ async def create_signed_upload_url(
     bytes to it with `Content-Type: <mime>` and no Authorization header.
     """
     s = _settings()
-    bucket = s.supabase_storage_bucket
+    bucket = bucket or s.supabase_storage_bucket
     async with httpx.AsyncClient(timeout=15.0) as client:
         r = await client.post(
             f"{_storage_base()}/object/upload/sign/{bucket}/{storage_path}",
@@ -132,9 +151,7 @@ async def create_signed_upload_url(
             json={"expiresIn": expires_in_seconds},
         )
     if r.status_code not in (200, 201):
-        raise StorageError(
-            f"Sign upload failed for {storage_path!r}: {r.status_code} {r.text}"
-        )
+        raise StorageError(f"Sign upload failed for {storage_path!r}: {r.status_code} {r.text}")
     body = r.json()
     relative = body.get("url")
     if not relative:
@@ -149,11 +166,12 @@ async def create_signed_upload_url(
 async def create_signed_download_url(
     storage_path: str,
     *,
+    bucket: str | None = None,
     expires_in_seconds: int = 300,
 ) -> str:
     """Return a short-lived signed GET URL for reading the object."""
     s = _settings()
-    bucket = s.supabase_storage_bucket
+    bucket = bucket or s.supabase_storage_bucket
     async with httpx.AsyncClient(timeout=15.0) as client:
         r = await client.post(
             f"{_storage_base()}/object/sign/{bucket}/{storage_path}",
@@ -161,9 +179,7 @@ async def create_signed_download_url(
             json={"expiresIn": expires_in_seconds},
         )
     if r.status_code not in (200, 201):
-        raise StorageError(
-            f"Sign download failed for {storage_path!r}: {r.status_code} {r.text}"
-        )
+        raise StorageError(f"Sign download failed for {storage_path!r}: {r.status_code} {r.text}")
     body = r.json()
     relative = body.get("signedURL") or body.get("signedUrl")
     if not relative:
@@ -173,10 +189,9 @@ async def create_signed_download_url(
     return f"{_storage_base()}{relative}"
 
 
-async def delete_object(storage_path: str) -> None:
+async def delete_object(storage_path: str, *, bucket: str | None = None) -> None:
     """Remove the object from the bucket. 404 is treated as success."""
-    s = _settings()
-    bucket = s.supabase_storage_bucket
+    bucket = bucket or _settings().supabase_storage_bucket
     async with httpx.AsyncClient(timeout=15.0) as client:
         r = await client.delete(
             f"{_storage_base()}/object/{bucket}/{storage_path}",
@@ -184,9 +199,7 @@ async def delete_object(storage_path: str) -> None:
         )
     if r.status_code in (200, 204, 404):
         return
-    raise StorageError(
-        f"Delete failed for {storage_path!r}: {r.status_code} {r.text}"
-    )
+    raise StorageError(f"Delete failed for {storage_path!r}: {r.status_code} {r.text}")
 
 
 async def delete_objects(storage_paths: list[str]) -> None:

@@ -93,6 +93,7 @@ class HoldingInput:
     sale_fees: Decimal = Decimal(0)
     purchase_date: date | None = None
     sale_date: date | None = None
+    spot_rate_at_purchase: Decimal | None = None  # as entered: per gram of the item
 
 
 @dataclass
@@ -107,6 +108,7 @@ class HoldingValue:
 class MetalTotals:
     metal: str
     grams: Decimal = Decimal(0)
+    pure_grams: Decimal = Decimal(0)  # fine metal content of valued lots
     current_value: Decimal = Decimal(0)
     cost_basis: Decimal = Decimal(0)
 
@@ -197,6 +199,9 @@ def summarize(
         summary.unrealized_pl += hv.unrealized_pl
         metal.current_value += hv.current_value
         metal.cost_basis += h.purchase_price
+        fraction = purity_fraction(h.purity)
+        if fraction is not None:
+            metal.pure_grams += h.weight_grams * h.quantity * fraction
     return summary
 
 
@@ -288,6 +293,7 @@ async def load_holdings(session: AsyncSession, portfolio_id: UUID) -> list[Holdi
                 sale_fees=sale.fees if sale else Decimal(0),
                 purchase_date=purchase_date,
                 sale_date=sale.sale_date if sale else None,
+                spot_rate_at_purchase=h.spot_rate_at_purchase,
             )
         )
     return result
