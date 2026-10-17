@@ -1,4 +1,5 @@
 from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
@@ -16,9 +17,15 @@ from app.schemas.price import (
     PortfolioSummaryOut,
     RateOut,
 )
-from app.services.performance import RateSeries, day_change, market_rates, portfolio_series
+from app.services.performance import (
+    RateSeries,
+    day_change,
+    market_rates,
+    portfolio_series,
+    purchase_premium,
+)
 from app.services.portfolio_access import OwnedPortfolioDep
-from app.services.price_history import HistoryRange, daily_pure_rates, range_start
+from app.services.price_history import HistoryRange, daily_pure_rates_many, range_start
 from app.services.valuation import load_holdings, rates_for_user, summarize
 
 router = APIRouter(tags=["portfolios"])
@@ -30,10 +37,9 @@ _RECENT_DAYS = 14
 
 
 async def _market_series(session: AsyncSession, currency: str, start: date | None) -> RateSeries:
-    return {
-        metal: (await daily_pure_rates(session, metal, currency, start))[0]
-        for metal in ("gold", "silver")
-    }
+    """Both metals' daily pure rates in `currency`, in one query."""
+    series = await daily_pure_rates_many(session, {("gold", currency), ("silver", currency)}, start)
+    return {metal: series[(metal, currency)] for metal in ("gold", "silver")}
 
 
 @router.get("/portfolios/{portfolio_id}/summary", response_model=PortfolioSummaryOut)
@@ -50,11 +56,25 @@ async def portfolio_summary(
     holdings = await load_holdings(session, portfolio.id)
     s = summarize(holdings, currency, rates)
 
-    recent = await _market_series(
-        session, currency, datetime.now(UTC).date() - timedelta(days=_RECENT_DAYS)
-    )
+    # One price query covers both needs (every query is a full DB round trip):
+    # the last few days for the rate cards / "Today", and each purchase date
+    # for premium-over-spot (lots with their own spot rate don't need one).
+    recent_start = datetime.now(UTC).date() - timedelta(days=_RECENT_DAYS)
+    needs_history = [h for h in holdings if not h.spot_rate_at_purchase and h.purchase_date]
+    pairs = {("gold", currency), ("silver", currency)} | {
+        (h.metal, h.currency) for h in needs_history
+    }
+    start = min([recent_start, *(h.purchase_date for h in needs_history if h.purchase_date)])
+    series = await daily_pure_rates_many(session, pairs, start)
+
+    recent: RateSeries = {
+        metal: [p for p in series[(metal, currency)] if p[0] >= recent_start]
+        for metal in ("gold", "silver")
+    }
     # "Today" compares market prices, so it's meaningless with manual rates.
     change = day_change(holdings, currency, recent) if user.default_pricing_mode == "live" else None
+    purchase_rates = {pair: dict(points) for pair, points in series.items()}
+    premiums = {h.id: purchase_premium(h, purchase_rates) for h in holdings}
 
     return PortfolioSummaryOut(
         currency=s.currency,
@@ -108,6 +128,7 @@ async def portfolio_summary(
             MetalSummaryOut(
                 metal=m.metal,
                 grams=m.grams,
+                pure_grams=m.pure_grams.quantize(Decimal("0.01")),
                 current_value=m.current_value,
                 cost_basis=m.cost_basis,
             )
@@ -119,6 +140,16 @@ async def portfolio_summary(
                 current_value=hv.current_value,
                 unrealized_pl=hv.unrealized_pl,
                 realized_pl=hv.realized_pl,
+                **(
+                    {
+                        "melt_value_at_purchase": prem.melt_value,
+                        "premium": prem.amount,
+                        "premium_pct": prem.pct,
+                        "premium_source": prem.source,
+                    }
+                    if (prem := premiums.get(hv.id))
+                    else {}
+                ),
             )
             for hv in s.holdings
         ],

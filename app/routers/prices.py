@@ -19,6 +19,7 @@ from app.schemas.price import (
 )
 from app.schemas.user import UserOut
 from app.services.price_history import HistoryRange, daily_pure_rates, range_start
+from app.services.profile import user_out
 from app.services.valuation import PURE_PURITY
 
 router = APIRouter(prefix="/prices", tags=["prices"])
@@ -87,7 +88,7 @@ async def set_manual_rates(
             )
     await session.commit()
     await session.refresh(user)
-    return UserOut.model_validate(user)
+    return await user_out(user)
 
 
 @router.get("/history", response_model=PriceHistoryResponse)
