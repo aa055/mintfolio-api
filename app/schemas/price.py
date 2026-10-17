@@ -56,6 +56,7 @@ class RateOut(BaseModel):
 class MetalSummaryOut(BaseModel):
     metal: str
     grams: Decimal
+    pure_grams: Decimal
     current_value: Decimal
     cost_basis: Decimal
 
@@ -65,6 +66,11 @@ class HoldingValueOut(BaseModel):
     current_value: Decimal | None
     unrealized_pl: Decimal | None
     realized_pl: Decimal | None
+    # Premium over spot at purchase (None when no spot rate is known)
+    melt_value_at_purchase: Decimal | None = None
+    premium: Decimal | None = None
+    premium_pct: Decimal | None = None
+    premium_source: Literal["entered", "market"] | None = None
 
 
 class DayChangeOut(BaseModel):

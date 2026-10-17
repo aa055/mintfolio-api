@@ -19,10 +19,13 @@ class UserOut(BaseModel):
     id: UUID
     email: str
     display_name: str | None
-    avatar_url: str | None
+    avatar_url: str | None  # external photo, e.g. from Google
+    # Short-lived signed URL of the uploaded photo (preferred over avatar_url)
+    photo_url: str | None = None
     preferred_currency: str
     timezone: str
     default_pricing_mode: str
+    weight_unit: Literal["g", "oz", "tola"]
     manual_gold_rate_per_gram: Decimal | None
     manual_silver_rate_per_gram: Decimal | None
     manual_rates_currency: str | None
@@ -51,6 +54,12 @@ class UserSettingsUpdate(BaseModel):
     preferred_currency: Currency | None = None
     timezone: str | None = Field(default=None, max_length=64)
     default_pricing_mode: Literal["live", "manual"] | None = None
+    weight_unit: Literal["g", "oz", "tola"] | None = None
+
+    @field_validator("display_name")
+    @classmethod
+    def _blank_name_is_none(cls, v: str | None) -> str | None:
+        return v.strip() or None if v is not None else None
 
     @field_validator("timezone")
     @classmethod
@@ -63,7 +72,7 @@ class UserSettingsUpdate(BaseModel):
             raise ValueError(f"Unknown timezone: {v!r}") from exc
         return v
 
-    @field_validator("preferred_currency", "timezone", "default_pricing_mode")
+    @field_validator("preferred_currency", "timezone", "default_pricing_mode", "weight_unit")
     @classmethod
     def _not_null(cls, v: object) -> object:
         # These columns are NOT NULL — sending null is a client bug, not "clear".
@@ -80,3 +89,17 @@ class AuthSyncRequest(BaseModel):
 
     display_name: str | None = Field(default=None, max_length=200)
     avatar_url: str | None = Field(default=None, max_length=2000)
+
+
+class AvatarSignRequest(BaseModel):
+    mime_type: Literal["image/jpeg", "image/png", "image/webp"]
+    size_bytes: int = Field(gt=0, le=2 * 1024 * 1024)  # 2 MB
+
+
+class AvatarSignResponse(BaseModel):
+    upload_url: str
+    storage_path: str
+
+
+class AvatarSetRequest(BaseModel):
+    storage_path: str = Field(min_length=1, max_length=300)
