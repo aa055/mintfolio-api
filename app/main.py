@@ -15,7 +15,13 @@ from app.routers import (
     sales,
     transactions,
 )
-from app.services.storage import StorageError, ensure_bucket
+from app.services.storage import (
+    AVATAR_MIME_TYPES,
+    MAX_AVATAR_BYTES,
+    StorageError,
+    avatar_bucket,
+    ensure_bucket,
+)
 
 
 @asynccontextmanager
@@ -26,6 +32,11 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # unreachable when a request comes in.
     try:
         await ensure_bucket()
+        await ensure_bucket(
+            avatar_bucket(),
+            allowed_mime_types=AVATAR_MIME_TYPES,
+            file_size_limit=MAX_AVATAR_BYTES,
+        )
     except StorageError as exc:
         print(f"[startup] ensure_bucket failed (continuing): {exc}")
 
@@ -33,6 +44,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
     # Shutdown: dispose engine cleanly to close pooled connections
     from app.db import engine
+
     await engine.dispose()
 
 
