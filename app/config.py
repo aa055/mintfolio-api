@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     supabase_service_role_key: str
     supabase_jwt_secret: str
     supabase_storage_bucket: str = "receipts"
+    supabase_avatar_bucket: str = "avatars"
 
     # GoldAPI.io
     goldapi_key: str = ""

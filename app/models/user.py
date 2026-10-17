@@ -28,21 +28,17 @@ class User(Base):
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True)
     email: Mapped[str] = mapped_column(String, nullable=False)
     display_name: Mapped[str | None] = mapped_column(String, nullable=True)
-    avatar_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    avatar_url: Mapped[str | None] = mapped_column(String, nullable=True)  # e.g. Google photo
+    # Uploaded profile photo in the private avatars bucket; shown before avatar_url.
+    avatar_path: Mapped[str | None] = mapped_column(String, nullable=True)
 
-    preferred_currency: Mapped[str] = mapped_column(
-        String, nullable=False, server_default="AED"
-    )
-    timezone: Mapped[str] = mapped_column(
-        String, nullable=False, server_default="Asia/Dubai"
-    )
-    default_pricing_mode: Mapped[str] = mapped_column(
-        String, nullable=False, server_default="live"
-    )
+    preferred_currency: Mapped[str] = mapped_column(String, nullable=False, server_default="AED")
+    timezone: Mapped[str] = mapped_column(String, nullable=False, server_default="Asia/Dubai")
+    default_pricing_mode: Mapped[str] = mapped_column(String, nullable=False, server_default="live")
+    # Display unit only — stored weights are always grams.
+    weight_unit: Mapped[str] = mapped_column(String, nullable=False, server_default="g")
 
-    manual_gold_rate_per_gram: Mapped[Decimal | None] = mapped_column(
-        Numeric(14, 4), nullable=True
-    )
+    manual_gold_rate_per_gram: Mapped[Decimal | None] = mapped_column(Numeric(14, 4), nullable=True)
     manual_silver_rate_per_gram: Mapped[Decimal | None] = mapped_column(
         Numeric(14, 4), nullable=True
     )
@@ -81,4 +77,5 @@ class User(Base):
             "default_pricing_mode IN ('live','manual')",
             name="ck_users_default_pricing_mode",
         ),
+        CheckConstraint("weight_unit IN ('g','oz','tola')", name="ck_users_weight_unit"),
     )
