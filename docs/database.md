@@ -1,7 +1,7 @@
 # Database
 
 > **What this covers:** the **current** schema (7 tables), every constraint and index, storage buckets, and the migration history.
-> **Source of truth:** `app/models/*.py` and `alembic/versions/`. The current head is `d4e5f6a7b8c9`.
+> **Source of truth:** `app/models/*.py` and `alembic/versions/`. The current head is `e5f6a7b8c9d0`.
 > The original design reasoning (revision 2, May 2026) is kept in [schema-design.md](schema-design.md).
 
 ---
@@ -111,6 +111,7 @@ All foreign keys are `ON DELETE CASCADE`. Deleting a user removes everything bel
 | Enums | `text` + `CHECK` (adding a value = a small migration, no enum type) |
 | Deletes | hard delete with cascade |
 | RLS | **enabled on every table, no policies** (deny by default). The API connects as the DB owner. |
+| Grants | `anon` / `authenticated` have **no** read/write privileges on public tables, so they're locked out twice. `service_role` has them (migration `e5f6a7b8c9d0`). |
 
 ---
 
@@ -243,6 +244,7 @@ flowchart LR
     m1["a1b2c3d4e5f6<br/>27 May · initial schema<br/>7 tables, RLS on"] --> m2["b2c3d4e5f6a7<br/>1 Oct · metalsdev source<br/>+ daily unique index"]
     m2 --> m3["c3d4e5f6a7b8<br/>11 Oct · holdings.created_at<br/>= clock_timestamp()"]
     m3 --> m4["d4e5f6a7b8c9<br/>17 Oct · users.avatar_path<br/>+ users.weight_unit"]
+    m4 --> m5["e5f6a7b8c9d0<br/>18 Oct · service_role<br/>table grants"]
 ```
 
 | Revision | Date | Change |
@@ -251,6 +253,7 @@ flowchart LR
 | `b2c3d4e5f6a7` | 1 Oct 2026 | `price_history.source` allows `metalsdev`; partial unique index per market source and day |
 | `c3d4e5f6a7b8` | 11 Oct 2026 | `holdings.created_at` default → `clock_timestamp()` |
 | `d4e5f6a7b8c9` | 17 Oct 2026 | `users.avatar_path`, `users.weight_unit` (CHECK g/oz/tola) |
+| `e5f6a7b8c9d0` | 18 Oct 2026 | `service_role` gets SELECT/INSERT/UPDATE/DELETE on all current and future tables. This is for projects created with "expose new tables" off; it's a no-op on older ones. |
 
 **Commands**
 

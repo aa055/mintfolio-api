@@ -33,7 +33,7 @@ All settings are read from `.env` by `app/config.py`. The full table with exampl
 | Optional | `ENVIRONMENT`, `SUPABASE_STORAGE_BUCKET`, `SUPABASE_AVATAR_BUCKET`, `PRICE_CURRENCIES`, `CORS_ORIGINS` |
 | Jobs | `GOLDAPI_KEY` (daily), `METALS_DEV_KEY` (backfill) |
 
-**Database URL tip:** the direct host `db.<ref>.supabase.co` is IPv6-only on the free tier. On a normal IPv4 network, use the **Session pooler** host (`aws-1-ap-southeast-2.pooler.supabase.com:5432`, user `postgres.<ref>`). Keep the driver prefixes: `postgresql+asyncpg://` for the app and `postgresql+psycopg://` for Alembic.
+**Database URL tip:** the direct host `db.<ref>.supabase.co` is IPv6-only on the free tier. On a normal IPv4 network, use the **Session pooler** host (`aws-0-ap-southeast-1.pooler.supabase.com:5432`, user `postgres.<ref>`, region Singapore). Keep the driver prefixes: `postgresql+asyncpg://` for the app and `postgresql+psycopg://` for Alembic.
 
 ---
 

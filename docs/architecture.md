@@ -89,7 +89,7 @@ mintfolio-api/
 │   └── jobs/
 │       ├── fetch_prices.py      daily GoldAPI → price_history
 │       └── backfill_prices.py   metals.dev 5-year history (one-off, idempotent)
-├── alembic/versions/        4 migrations (see database.md)
+├── alembic/versions/        5 migrations (see database.md)
 ├── tests/                   unit tests (maths) + health
 ├── .github/workflows/       daily-prices.yml
 └── docs/                    you are here
